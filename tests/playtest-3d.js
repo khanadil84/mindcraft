@@ -128,7 +128,19 @@ const path = require("path");
     }
 
     console.log("Hazard test: collision GAME OVER verified.");
-    console.log("PLAYTEST PASS: 3D game loads, accepts controls, enforces timer, verifies win, and detects hazard collision.");
+    await page.keyboard.press("r");
+    await page.waitForTimeout(250);
+
+    const restartStatus = await page.locator("#status").textContent();
+    console.log(`Restart test status: ${restartStatus}`);
+
+    if (!restartStatus.includes("Cores: 0 / 3")) {
+        throw new Error("FAIL: Restart did not reset the game.");
+    }
+
+    console.log("Restart test: R key reset verified.");
+
+    console.log("PLAYTEST PASS: 3D game loads, accepts controls, enforces timer, verifies win, detects hazard collision, and supports restart.");
 
     await hazardPage.close();
     await winPage.close();

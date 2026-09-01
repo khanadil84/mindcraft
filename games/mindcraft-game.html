@@ -32,7 +32,7 @@ h1{margin:14px 0 5px}
 
 <h1>Neon Escape 3D</h1>
 <div class="info">Collect all 3 energy cores and reach the green exit.</div>
-<div class="info">W/S = move &nbsp; A/D = turn</div>
+<div class="info">W/S = move &nbsp; A/D = turn &nbsp; R = restart</div>
 
 <canvas id="game" width="900" height="500"></canvas>
 
@@ -86,7 +86,14 @@ let hazardAngle=0;
 
 document.addEventListener("keydown",e=>{
  const k=e.key.toLowerCase();
+
+ if(k==="r" && ended){
+   location.reload();
+   return;
+ }
+
  keys.add(k);
+
  if(["w","a","s","d","arrowup","arrowdown","arrowleft","arrowright"].includes(k))
    e.preventDefault();
 });
