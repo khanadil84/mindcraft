@@ -77,6 +77,21 @@ def run_playtest():
 def repair_game(diagnosis):
     game_file = ROOT / "games" / "mindcraft-game.html"
 
+    if diagnosis == "JAVASCRIPT_ERROR":
+        backup_file = Path("/tmp/mindcraft-game.js-backup.html")
+
+        if backup_file.exists():
+            game_file.write_text(
+                backup_file.read_text(encoding="utf-8"),
+                encoding="utf-8"
+            )
+            print("SELF-HEAL: Applied JAVASCRIPT_ERROR repair.")
+            print("SELF-HEAL: Restored last known-good game backup.")
+            return True
+
+        print("SELF-HEAL: JavaScript backup not found.")
+        return False
+
     if diagnosis == "CONTRACT_FAILURE":
         text = game_file.read_text(encoding="utf-8")
 
