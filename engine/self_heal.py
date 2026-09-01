@@ -17,11 +17,14 @@ def diagnose(output):
     if "restart did not reset the game" in text or "restart" in text and "fail:" in text:
         return "RESTART_FAILURE"
 
+    if "win condition not reached" in text or "finish zone" in text and "fail:" in text:
+        return "WIN_FAILURE"
+
+    if "obstacle collision not detected" in text or "obstacle collision" in text and "fail:" in text:
+        return "COLLISION_FAILURE"
+
     if "player did not move" in text or "movement" in text and "fail:" in text:
         return "INPUT_FAILURE"
-
-    if "obstacle collision" in text and "fail:" in text:
-        return "COLLISION_FAILURE"
 
     if "win condition" in text or "finish zone" in text and "fail:" in text:
         return "WIN_FAILURE"
@@ -124,6 +127,57 @@ def repair_game(diagnosis):
             return True
 
         print("SELF-HEAL: Restart repair pattern not found.")
+        return False
+
+    if diagnosis == "COLLISION_FAILURE":
+        text = game_file.read_text(encoding="utf-8")
+
+        old_collision = "function obstacleHit(o){\n return false;\n}"
+
+        new_collision = """function obstacleHit(o){
+ return(
+   player.x+player.radius>o.x &&
+   player.x-player.radius<o.x+o.w &&
+   player.y+player.radius>o.y-o.h/2 &&
+   player.y-player.radius<o.y+o.h/2
+ );
+}"""
+
+        if old_collision in text:
+            text = text.replace(old_collision, new_collision, 1)
+            game_file.write_text(text, encoding="utf-8")
+            print("SELF-HEAL: Applied COLLISION_FAILURE repair.")
+            print("SELF-HEAL: Restored obstacle collision logic.")
+            return True
+
+        print("SELF-HEAL: Collision repair pattern not found.")
+        return False
+
+    if diagnosis == "WIN_FAILURE":
+        text = game_file.read_text(encoding="utf-8")
+
+        old_win = """if(false){
+   ended=true;
+   progress=100;
+   statusEl.textContent="YOU WIN! Gravity Flip completed!";
+   return;
+ }"""
+
+        new_win = """if(player.x>=finish.x){
+   ended=true;
+   progress=100;
+   statusEl.textContent="YOU WIN! Gravity Flip completed!";
+   return;
+ }"""
+
+        if old_win in text:
+            text = text.replace(old_win, new_win, 1)
+            game_file.write_text(text, encoding="utf-8")
+            print("SELF-HEAL: Applied WIN_FAILURE repair.")
+            print("SELF-HEAL: Restored win-condition logic.")
+            return True
+
+        print("SELF-HEAL: Win repair pattern not found.")
         return False
 
     print(f"SELF-HEAL: No automatic repair available for {diagnosis}.")
