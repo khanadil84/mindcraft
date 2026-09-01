@@ -7,16 +7,50 @@ DESIGN = ROOT / "designs" / "game-design.md"
 OUTPUT = ROOT / "games" / "mindcraft-game.html"
 
 
-def get_title():
+def get_design():
     text = DESIGN.read_text(encoding="utf-8")
+
+    def field(section):
+        marker = f"### {section}"
+        lines = text.splitlines()
+
+        for i, line in enumerate(lines):
+            if line.strip() == marker:
+                for value in lines[i + 1:]:
+                    value = value.strip()
+                    if value and not value.startswith("#"):
+                        return value
+        return ""
+
+    title = ""
     for line in text.splitlines():
         if line.startswith("# "):
-            return line[2:].strip()
-    return "Neon Escape 3D"
+            title = line[2:].strip()
+            break
+
+    return {
+        "title": title or "Neon Escape 3D",
+        "description": field("Short Description"),
+        "objective": field("Core Objective"),
+        "controls": field("Player Controls"),
+        "mechanic": field("Main Mechanic"),
+        "win": field("Win Condition"),
+        "lose": field("Lose Condition"),
+        "hazards": field("Enemies or Hazards"),
+        "targets": field("Collectibles or Targets"),
+    }
 
 
-def build_game(title):
-    return f"""<!DOCTYPE html>
+def build_game(design):
+    title = design["title"]
+    description = design["description"]
+    controls = design["controls"]
+    mechanic = design["mechanic"]
+    win = design["win"]
+    lose = design["lose"]
+
+    if title == "Gravity Flip":
+        return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -48,13 +82,13 @@ h1{{margin:14px 0 5px}}
 
 <body>
 
-<h1>Neon Escape 3D</h1>
-<div class="info">Collect all 3 energy cores and reach the green exit.</div>
-<div class="info">W/S = move &nbsp; A/D = turn</div>
+<h1>{title}</h1>
+<div class="info">{description}</div>
+<div class="info">{controls}</div>
 
 <canvas id="game" width="900" height="500"></canvas>
 
-<div id="status">Cores: 0 / 3 | Time: 60</div>
+<div id="status">Gravity: FLOOR | Progress: 0%</div>
 
 <div class="footer">Powered by @Modiqo & #rote</div>
 
@@ -65,47 +99,73 @@ const canvas=document.getElementById("game");
 const ctx=canvas.getContext("2d");
 const statusEl=document.getElementById("status");
 
-const map=[
-"111111111111",
-"100000000001",
-"101111011101",
-"100001000001",
-"101101011101",
-"100100000001",
-"101101110101",
-"100000000001",
-"101111011101",
-"100000000001",
-"111111111111"
-];
-
-const player={{
- x:1.8,
- y:1.8,
- angle:0,
- speed:.045,
- turn:.045
+const world={{
+ width:18,
+ floor:4.2,
+ ceiling:0.8
 }};
 
-const cores=[
- {{x:5.5,y:3.5,taken:false}},
- {{x:9.5,y:5.5,taken:false}},
- {{x:3.5,y:8.5,taken:false}}
+const player={{
+ x:1.5,
+ y:4.2,
+ radius:.25,
+ speed:.075,
+ gravity:"floor"
+}};
+
+const obstacles=[
+ {{x:4.0,y:4.2,w:.65,h:1.2}},
+ {{x:7.0,y:.8,w:.65,h:1.2}},
+ {{x:10.0,y:4.2,w:.65,h:1.2}},
+ {{x:13.0,y:.8,w:.65,h:1.2}},
+ {{x:15.5,y:4.2,w:.65,h:1.2}}
 ];
 
-const exit={{x:10.2,y:9.2}};
-const hazard={{x:6,y:6}};
+const finish={{x:17.0}};
 
 const keys=new Set();
-const start=performance.now();
-
 let ended=false;
-let hazardAngle=0;
+let progress=0;
+
+window.MINDCRAFT_GAME={{
+ version:"1.0",
+ engine:"3d",
+ title:{title!r},
+ gameType:"gravity-flip",
+ getStatus:()=>statusEl.textContent,
+ isEnded:()=>ended,
+ getState:()=>({{
+   gravity:player.gravity,
+   x:player.x,
+   progress
+ }}),
+ restart:()=>location.reload()
+}};
 
 document.addEventListener("keydown",e=>{{
  const k=e.key.toLowerCase();
+
+ if(k==="r" && ended){{
+   location.reload();
+   return;
+ }}
+
+ if(k===" " || k==="spacebar"){{
+   e.preventDefault();
+
+   if(!ended){{
+     player.gravity=
+       player.gravity==="floor" ? "ceiling" : "floor";
+     player.y=
+       player.gravity==="floor" ? world.floor : world.ceiling;
+   }}
+
+   return;
+ }}
+
  keys.add(k);
- if(["w","a","s","d","arrowup","arrowdown","arrowleft","arrowright"].includes(k))
+
+ if(["arrowleft","arrowright","a","d"].includes(k))
    e.preventDefault();
 }});
 
@@ -113,184 +173,114 @@ document.addEventListener("keyup",e=>{{
  keys.delete(e.key.toLowerCase());
 }});
 
-function isWall(x,y){{
- const mx=Math.floor(x);
- const my=Math.floor(y);
- return !map[my] || map[my][mx]!=="0";
-}}
-
-function move(nx,ny){{
- const r=.18;
-
- if(
-   !isWall(nx-r,player.y)&&
-   !isWall(nx+r,player.y)
- ) player.x=nx;
-
- if(
-   !isWall(player.x,ny-r)&&
-   !isWall(player.x,ny+r)
- ) player.y=ny;
-}}
-
-function cast(angle){{
- const dx=Math.cos(angle);
- const dy=Math.sin(angle);
-
- for(let d=.02;d<20;d+=.02){{
-   if(isWall(player.x+dx*d,player.y+dy*d))
-     return d;
- }}
-
- return 20;
-}}
-
-function drawWorld(){{
- const w=canvas.width;
- const h=canvas.height;
- const fov=Math.PI/3;
-
- ctx.fillStyle="#172033";
- ctx.fillRect(0,0,w,h/2);
-
- ctx.fillStyle="#030712";
- ctx.fillRect(0,h/2,w,h/2);
-
- for(let x=0;x<w;x++){{
-   const rayAngle=player.angle-fov/2+(x/w)*fov;
-   let d=cast(rayAngle);
-   d*=Math.cos(rayAngle-player.angle);
-
-   const wallHeight=Math.min(h,h/(d*.72));
-   const top=(h-wallHeight)/2;
-
-   const shade=Math.max(25,Math.floor(210/(1+d*.45)));
-
-   ctx.fillStyle=
-     `rgb(${{Math.floor(shade*.18)}},${{Math.floor(shade*.5)}},${{shade}})`;
-
-   ctx.fillRect(x,top,1,wallHeight);
- }}
-}}
-
-function project(obj,size,fill){{
- const dx=obj.x-player.x;
- const dy=obj.y-player.y;
- const distance=Math.hypot(dx,dy);
-
- let relative=Math.atan2(dy,dx)-player.angle;
-
- while(relative>Math.PI)relative-=Math.PI*2;
- while(relative<-Math.PI)relative+=Math.PI*2;
-
- const fov=Math.PI/3;
-
- if(Math.abs(relative)>fov/2)return;
-
- const screenX=
-   canvas.width/2+
-   relative/(fov/2)*(canvas.width/2);
-
- const radius=Math.min(160,canvas.height/(distance*.65))*size;
-
- ctx.beginPath();
- ctx.arc(screenX,canvas.height/2,radius,0,Math.PI*2);
- ctx.fillStyle=fill;
- ctx.shadowBlur=22;
- ctx.shadowColor=fill;
- ctx.fill();
- ctx.shadowBlur=0;
+function obstacleHit(o){{
+ return(
+   player.x+player.radius>o.x &&
+   player.x-player.radius<o.x+o.w &&
+   player.y+player.radius>o.y-o.h/2 &&
+   player.y-player.radius<o.y+o.h/2
+ );
 }}
 
 function update(){{
  if(ended)return;
 
- if(keys.has("a")||keys.has("arrowleft"))
-   player.angle-=player.turn;
+ if(keys.has("arrowright")||keys.has("d"))
+   player.x+=player.speed;
 
- if(keys.has("d")||keys.has("arrowright"))
-   player.angle+=player.turn;
+ if(keys.has("arrowleft")||keys.has("a"))
+   player.x-=player.speed;
 
- let amount=0;
+ player.x=Math.max(.5,Math.min(finish.x,player.x));
 
- if(keys.has("w")||keys.has("arrowup"))amount=.045;
- if(keys.has("s")||keys.has("arrowdown"))amount=-.045;
-
- if(amount)
-   move(
-     player.x+Math.cos(player.angle)*amount,
-     player.y+Math.sin(player.angle)*amount
-   );
-
- for(const c of cores){{
-   if(!c.taken&&Math.hypot(player.x-c.x,player.y-c.y)<.45)
-     c.taken=true;
+ for(const o of obstacles){{
+   if(obstacleHit(o)){{
+     ended=true;
+     statusEl.textContent="GAME OVER — Obstacle collision!";
+     return;
+   }}
  }}
 
- const count=cores.filter(c=>c.taken).length;
+ progress=Math.min(
+   100,
+   Math.floor((player.x/(finish.x))*100)
+ );
 
- hazardAngle+=.035;
-
- const hx=hazard.x+Math.cos(hazardAngle)*2;
- const hy=hazard.y+Math.sin(hazardAngle)*2;
-
- if(Math.hypot(player.x-hx,player.y-hy)<.4){{
+ if(player.x>=finish.x){{
    ended=true;
-   statusEl.textContent="GAME OVER — Hazard collision!";
-   return;
- }}
-
- if(count===3&&Math.hypot(player.x-exit.x,player.y-exit.y)<.6){{
-   ended=true;
-   statusEl.textContent="YOU WIN! Neon Escape completed!";
-   return;
- }}
-
- const elapsed=(performance.now()-start)/1000;
- const remaining=Math.max(0,60-elapsed);
-
- if(remaining<=0){{
-   ended=true;
-   statusEl.textContent="GAME OVER — Time expired!";
+   progress=100;
+   statusEl.textContent="YOU WIN! Gravity Flip completed!";
    return;
  }}
 
  statusEl.textContent=
-   `Cores: ${{count}} / 3 | Time: ${{Math.ceil(remaining)}}`;
+   `Gravity: ${{player.gravity.toUpperCase()}} | Progress: ${{progress}}%`;
 }}
 
-function drawObjects(){{
- for(const c of cores)
-   if(!c.taken)project(c,.18,"#22d3ee");
+function drawWorld(){{
+ const w=canvas.width;
+ const h=canvas.height;
 
- project(exit,.25,"#22c55e");
+ ctx.fillStyle="#081126";
+ ctx.fillRect(0,0,w,h);
 
- const hx=hazard.x+Math.cos(hazardAngle)*2;
- const hy=hazard.y+Math.sin(hazardAngle)*2;
+ ctx.fillStyle="#111c36";
+ ctx.fillRect(0,180,w,140);
 
- project({{x:hx,y:hy}},.22,"#ef4444");
-}}
+ ctx.strokeStyle="#38bdf8";
+ ctx.lineWidth=4;
+ ctx.beginPath();
+ ctx.moveTo(0,world.floor*70);
+ ctx.lineTo(w,world.floor*70);
+ ctx.stroke();
 
-function draw(){{
- drawWorld();
- drawObjects();
+ ctx.strokeStyle="#a78bfa";
+ ctx.beginPath();
+ ctx.moveTo(0,world.ceiling*70);
+ ctx.lineTo(w,world.ceiling*70);
+ ctx.stroke();
+
+ const scale=42;
+
+ for(const o of obstacles){{
+   ctx.fillStyle="#ef4444";
+   ctx.fillRect(
+     o.x*scale,
+     o.y*70-42,
+     o.w*scale,
+     o.h*70
+   );
+ }}
+
+ ctx.fillStyle="#22c55e";
+ ctx.fillRect(finish.x*scale,150,24,170);
+
+ ctx.fillStyle="#22d3ee";
+ ctx.beginPath();
+ ctx.arc(
+   player.x*scale,
+   player.gravity==="floor"
+     ? world.floor*70-18
+     : world.ceiling*70+18,
+   13,
+   0,
+   Math.PI*2
+ );
+ ctx.fill();
 
  ctx.fillStyle="white";
  ctx.font="16px Arial";
  ctx.fillText("MINDCRAFT 3D",20,28);
-
- ctx.strokeStyle="rgba(255,255,255,.55)";
- ctx.beginPath();
- ctx.moveTo(442,250);
- ctx.lineTo(458,250);
- ctx.moveTo(450,242);
- ctx.lineTo(450,258);
- ctx.stroke();
+ ctx.fillText(
+   "SPACE = FLIP GRAVITY",
+   20,
+   475
+ );
 }}
 
 function loop(){{
  update();
- draw();
+ drawWorld();
  requestAnimationFrame(loop);
 }}
 
@@ -301,19 +291,24 @@ loop();
 </html>
 """
 
+    raise ValueError(
+        f"Unsupported game design: {title}. "
+        "Add a dedicated 3D generator before forging this game."
+    )
+
 
 def forge():
     if not DESIGN.exists():
         raise SystemExit("ERROR: game-design.md not found")
 
-    title=get_title()
-    game=build_game(title)
+    design=get_design()
+    game=build_game(design)
 
     OUTPUT.parent.mkdir(parents=True,exist_ok=True)
     OUTPUT.write_text(game,encoding="utf-8")
 
     print(f"Forged: {OUTPUT}")
-    print("Game: Neon Escape 3D")
+    print(f"Game: {design['title']}")
     print("Engine: 3d")
     print(f"Generated: {datetime.now().isoformat(timespec="seconds")}")
 

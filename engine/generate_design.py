@@ -107,6 +107,7 @@ The player must remain inside the playable game area.
 ## 4. Technical Requirements
 
 - Browser playable
+- 3D game
 - HTML5 Canvas or DOM
 - Vanilla JavaScript
 - No external runtime dependencies
