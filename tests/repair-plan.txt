@@ -1,0 +1,4 @@
+MindCraft Self-Heal Repair Plan
+Generated: 2026-09-01T13:21:47
+Diagnosis: RESTART_FAILURE
+Action: Repair the R-key restart/reset behavior.

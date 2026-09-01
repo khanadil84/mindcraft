@@ -1,0 +1,21 @@
+MindCraft Playtest Report
+Generated: 2026-09-01T13:21:51
+Exit Code: 0
+Diagnosis: PASS
+
+Title: Gravity Flip — MindCraft
+Canvas count: 1
+JavaScript errors: 0
+Contract: {"exists":true,"version":"1.0","engine":"3d","gameType":"gravity-flip","title":"Gravity Flip"}
+Contract test: 3D Gravity Flip contract verified.
+Movement test: 1.50 -> 2.70
+Movement test: player movement verified.
+Gravity test: floor -> ceiling
+Gravity test: SPACE flip verified.
+Obstacle test status: GAME OVER — Obstacle collision!
+Obstacle test: GAME OVER verified.
+Win test status: YOU WIN! Gravity Flip completed!
+Win test: finish zone verified.
+Restart test state: {"ended":false,"gravity":"floor","x":1.5,"status":"Gravity: FLOOR | Progress: 8%"}
+Restart test: R key reset verified.
+PLAYTEST PASS: 3D game loads, contract works, movement works, gravity flips, obstacles cause GAME OVER, finish causes YOU WIN, and restart works.
