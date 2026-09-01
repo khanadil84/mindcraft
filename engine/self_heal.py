@@ -81,7 +81,7 @@ def repair_game(diagnosis):
     game_file = ROOT / "games" / "mindcraft-game.html"
 
     if diagnosis == "JAVASCRIPT_ERROR":
-        backup_file = Path("/tmp/mindcraft-game.js-backup.html")
+        backup_file = ROOT / "backups" / "mindcraft-game.known-good.html"
 
         if backup_file.exists():
             game_file.write_text(

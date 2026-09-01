@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gravity Flip — MindCraft</title>
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;
+ background:#020617;
+ color:white;
+ font-family:Arial,sans-serif;
+ text-align:center;
+}
+h1{margin:14px 0 5px}
+.info{color:#cbd5e1;margin:5px}
+#game{
+ display:block;
+ width:min(900px,96vw);
+ height:auto;
+ margin:15px auto 8px;
+ border:2px solid #334155;
+ background:#000;
+}
+#status{font-size:20px;font-weight:bold;margin:8px}
+.footer{color:#94a3b8;margin:12px}
+</style>
+</head>
+
+<body>
+
+<h1>Gravity Flip</h1>
+<div class="info">A fast arcade game where the player flips gravity to avoid obstacles.</div>
+<div class="info">Press Space to flip gravity.</div>
+
+<canvas id="game" width="900" height="500"></canvas>
+
+<div id="status">Gravity: FLOOR | Progress: 0%</div>
+
+<div class="footer">Powered by @Modiqo & #rote</div>
+
+<script>
+"use strict";
+
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+const statusEl=document.getElementById("status");
+
+const world={
+ width:18,
+ floor:4.2,
+ ceiling:0.8
+};
+
+const player={
+ x:1.5,
+ y:4.2,
+ radius:.25,
+ speed:.075,
+ gravity:"floor"
+};
+
+const obstacles=[
+ {x:4.0,y:4.2,w:.65,h:1.2},
+ {x:7.0,y:.8,w:.65,h:1.2},
+ {x:10.0,y:4.2,w:.65,h:1.2},
+ {x:13.0,y:.8,w:.65,h:1.2},
+ {x:15.5,y:4.2,w:.65,h:1.2}
+];
+
+const finish={x:17.0};
+
+const keys=new Set();
+let ended=false;
+let progress=0;
+
+window.MINDCRAFT_GAME={
+ version:"1.0",
+ engine:"3d",
+ title:'Gravity Flip',
+ gameType:"gravity-flip",
+ getStatus:()=>statusEl.textContent,
+ isEnded:()=>ended,
+ getState:()=>({
+   gravity:player.gravity,
+   x:player.x,
+   progress
+ }),
+ restart:()=>location.reload()
+};
+
+document.addEventListener("keydown",e=>{
+ const k=e.key.toLowerCase();
+
+ if(k==="r" && ended){
+   location.reload();
+   return;
+ }
+
+ if(k===" " || k==="spacebar"){
+   e.preventDefault();
+
+   if(!ended){
+     player.gravity=
+       player.gravity==="floor" ? "ceiling" : "floor";
+     player.y=
+       player.gravity==="floor" ? world.floor : world.ceiling;
+   }
+
+   return;
+ }
+
+ keys.add(k);
+
+ if(["arrowleft","arrowright","a","d"].includes(k))
+   e.preventDefault();
+});
+
+document.addEventListener("keyup",e=>{
+ keys.delete(e.key.toLowerCase());
+});
+
+function obstacleHit(o){
+ return(
+   player.x+player.radius>o.x &&
+   player.x-player.radius<o.x+o.w &&
+   player.y+player.radius>o.y-o.h/2 &&
+   player.y-player.radius<o.y+o.h/2
+ );
+}
+
+function update(){
+ if(ended)return;
+
+ if(keys.has("arrowright")||keys.has("d"))
+   player.x+=player.speed;
+
+ if(keys.has("arrowleft")||keys.has("a"))
+   player.x-=player.speed;
+
+ player.x=Math.max(.5,Math.min(finish.x,player.x));
+
+ for(const o of obstacles){
+   if(obstacleHit(o)){
+     ended=true;
+     statusEl.textContent="GAME OVER — Obstacle collision!";
+     return;
+   }
+ }
+
+ progress=Math.min(
+   100,
+   Math.floor((player.x/(finish.x))*100)
+ );
+
+ if(player.x>=finish.x){
+   ended=true;
+   progress=100;
+   statusEl.textContent="YOU WIN! Gravity Flip completed!";
+   return;
+ }
+
+ statusEl.textContent=
+   `Gravity: ${player.gravity.toUpperCase()} | Progress: ${progress}%`;
+}
+
+function drawWorld(){
+ const w=canvas.width;
+ const h=canvas.height;
+
+ ctx.fillStyle="#081126";
+ ctx.fillRect(0,0,w,h);
+
+ ctx.fillStyle="#111c36";
+ ctx.fillRect(0,180,w,140);
+
+ ctx.strokeStyle="#38bdf8";
+ ctx.lineWidth=4;
+ ctx.beginPath();
+ ctx.moveTo(0,world.floor*70);
+ ctx.lineTo(w,world.floor*70);
+ ctx.stroke();
+
+ ctx.strokeStyle="#a78bfa";
+ ctx.beginPath();
+ ctx.moveTo(0,world.ceiling*70);
+ ctx.lineTo(w,world.ceiling*70);
+ ctx.stroke();
+
+ const scale=42;
+
+ for(const o of obstacles){
+   ctx.fillStyle="#ef4444";
+   ctx.fillRect(
+     o.x*scale,
+     o.y*70-42,
+     o.w*scale,
+     o.h*70
+   );
+ }
+
+ ctx.fillStyle="#22c55e";
+ ctx.fillRect(finish.x*scale,150,24,170);
+
+ ctx.fillStyle="#22d3ee";
+ ctx.beginPath();
+ ctx.arc(
+   player.x*scale,
+   player.gravity==="floor"
+     ? world.floor*70-18
+     : world.ceiling*70+18,
+   13,
+   0,
+   Math.PI*2
+ );
+ ctx.fill();
+
+ ctx.fillStyle="white";
+ ctx.font="16px Arial";
+ ctx.fillText("MINDCRAFT 3D",20,28);
+ ctx.fillText(
+   "SPACE = FLIP GRAVITY",
+   20,
+   475
+ );
+}
+
+function loop(){
+ update();
+ drawWorld();
+ requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+
+</body>
+</html>
