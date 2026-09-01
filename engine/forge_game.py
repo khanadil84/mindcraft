@@ -488,7 +488,7 @@ loop();
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{{title}} — MindCraft</title>
+<title>{title} — MindCraft</title>
 <style>
 body{{margin:0;background:#050816;color:white;font-family:Arial,sans-serif;text-align:center}}
 #game{{display:block;width:min(900px,96vw);height:auto;margin:18px auto 8px;background:#000;border:2px solid #334155}}
@@ -498,9 +498,9 @@ body{{margin:0;background:#050816;color:white;font-family:Arial,sans-serif;text-
 </style>
 </head>
 <body>
-<h1>{{title}}</h1>
-<div class="info">{{description}}</div>
-<div class="info">{{controls}}</div>
+<h1>{title}</h1>
+<div class="info">{description}</div>
+<div class="info">{controls}</div>
 <canvas id="game" width="900" height="500"></canvas>
 <div id="status">Time: 0 | Lives: 3</div>
 <div class="footer">Powered by @Modiqo & #rote</div>
@@ -527,7 +527,7 @@ let start=performance.now();
 window.MINDCRAFT_GAME={{
  version:"1.0",
  engine:"3d",
- title:{{title!r}},
+ title:{title!r},
  gameType:"laser-dodge",
  getStatus:()=>statusEl.textContent,
  isEnded:()=>ended,
