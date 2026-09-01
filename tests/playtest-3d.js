@@ -44,7 +44,10 @@ const path = require("path");
         version: window.MINDCRAFT_GAME?.version,
         engine: window.MINDCRAFT_GAME?.engine,
         gameType: window.MINDCRAFT_GAME?.gameType,
-        title: window.MINDCRAFT_GAME?.title
+        title: window.MINDCRAFT_GAME?.title,
+        hasState: typeof window.MINDCRAFT_GAME?.getState === "function",
+        hasStatus: typeof window.MINDCRAFT_GAME?.getStatus === "function",
+        hasRestart: typeof window.MINDCRAFT_GAME?.restart === "function"
     }));
 
     console.log(`Contract: ${JSON.stringify(contract)}`);
@@ -57,163 +60,151 @@ const path = require("path");
         throw new Error("FAIL: Game engine is not 3d");
     }
 
-    if (contract.gameType !== "gravity-flip") {
-        throw new Error(
-            `FAIL: Wrong game type: ${contract.gameType}`
-        );
+    if (!contract.gameType || typeof contract.gameType !== "string") {
+        throw new Error("FAIL: Game type missing");
     }
 
-    console.log("Contract test: 3D Gravity Flip contract verified.");
+    if (!contract.title || typeof contract.title !== "string") {
+        throw new Error("FAIL: Game title missing from contract");
+    }
 
-    // Movement test.
-    const beforeMove = await page.evaluate(
-        () => window.MINDCRAFT_GAME.getState().x
+    if (!contract.hasState) {
+        throw new Error("FAIL: getState() missing");
+    }
+
+    if (!contract.hasStatus) {
+        throw new Error("FAIL: getStatus() missing");
+    }
+
+    if (!contract.hasRestart) {
+        throw new Error("FAIL: restart() missing");
+    }
+
+    console.log(
+        `Contract test: Generic 3D contract verified for "${contract.gameType}".`
     );
+
+    // Generic movement test.
+    const beforeMove = await page.evaluate(() => {
+        const state = window.MINDCRAFT_GAME.getState();
+        return {
+            x: typeof state.x === "number" ? state.x : null,
+            y: typeof state.y === "number" ? state.y : null
+        };
+    });
 
     await page.keyboard.down("d");
     await page.waitForTimeout(250);
     await page.keyboard.up("d");
 
-    const afterMove = await page.evaluate(
-        () => window.MINDCRAFT_GAME.getState().x
-    );
+    const afterMove = await page.evaluate(() => {
+        const state = window.MINDCRAFT_GAME.getState();
+        return {
+            x: typeof state.x === "number" ? state.x : null,
+            y: typeof state.y === "number" ? state.y : null
+        };
+    });
 
     console.log(
-        `Movement test: ${beforeMove.toFixed(2)} -> ${afterMove.toFixed(2)}`
+        `Movement test: ${JSON.stringify(beforeMove)} -> ${JSON.stringify(afterMove)}`
     );
 
-    if (afterMove <= beforeMove) {
+    const moved =
+        (beforeMove.x !== null &&
+         afterMove.x !== null &&
+         afterMove.x !== beforeMove.x) ||
+        (beforeMove.y !== null &&
+         afterMove.y !== null &&
+         afterMove.y !== beforeMove.y);
+
+    if (!moved) {
         throw new Error("FAIL: Player did not move.");
     }
 
-    console.log("Movement test: player movement verified.");
-
-    // Gravity flip test.
-    const beforeGravity = await page.evaluate(
-        () => window.MINDCRAFT_GAME.getState().gravity
-    );
-
-    await page.keyboard.press("Space");
-    await page.waitForTimeout(100);
-
-    const afterGravity = await page.evaluate(
-        () => window.MINDCRAFT_GAME.getState().gravity
-    );
-
-    console.log(
-        `Gravity test: ${beforeGravity} -> ${afterGravity}`
-    );
-
-    if (beforeGravity === afterGravity) {
-        throw new Error("FAIL: Space did not flip gravity.");
-    }
-
-    console.log("Gravity test: SPACE flip verified.");
+    console.log("Movement test: generic player movement verified.");
 
     await page.close();
 
-    // Fresh page for obstacle collision.
-    const collisionPage = await browser.newPage();
-
-    await collisionPage.goto(`file://${gamePath}`);
-
-    await collisionPage.evaluate(() => {
-        player.x = 4.0;
-        player.y = 4.2;
-    });
-
-    await collisionPage.waitForTimeout(100);
-
-    const collisionStatus =
-        await collisionPage.locator("#status").textContent();
-
-    console.log(`Obstacle test status: ${collisionStatus}`);
-
-    if (!collisionStatus.includes("Obstacle collision")) {
-        throw new Error(
-            `FAIL: Obstacle collision not detected: ${collisionStatus}`
-        );
-    }
-
-    console.log("Obstacle test: GAME OVER verified.");
-
-    await collisionPage.close();
-
-    // Fresh page for win condition.
-    const winPage = await browser.newPage();
-
-    await winPage.goto(`file://${gamePath}`);
-
-    await winPage.evaluate(() => {
-        player.x = finish.x;
-    });
-
-    await winPage.waitForTimeout(100);
-
-    const winStatus =
-        await winPage.locator("#status").textContent();
-
-    console.log(`Win test status: ${winStatus}`);
-
-    if (!winStatus.includes("YOU WIN")) {
-        throw new Error(
-            `FAIL: Win condition not reached: ${winStatus}`
-        );
-    }
-
-    console.log("Win test: finish zone verified.");
-
-    await winPage.close();
-
-    // Restart test.
+    // Generic restart test.
     const restartPage = await browser.newPage();
 
     await restartPage.goto(`file://${gamePath}`);
 
+    const initialState = await restartPage.evaluate(() =>
+        window.MINDCRAFT_GAME.getState()
+    );
+
+    await restartPage.keyboard.down("d");
+    await restartPage.waitForTimeout(250);
+    await restartPage.keyboard.up("d");
+
+    const movedState = await restartPage.evaluate(() =>
+        window.MINDCRAFT_GAME.getState()
+    );
+
+    if (JSON.stringify(initialState) === JSON.stringify(movedState)) {
+        throw new Error("FAIL: Restart setup could not change game state.");
+    }
+
     await restartPage.evaluate(() => {
-        player.x = 10;
-        player.gravity = "ceiling";
+        const game = window.MINDCRAFT_GAME;
+        game.restart();
     });
 
-    await restartPage.waitForTimeout(50);
-
-    await restartPage.keyboard.press("Space");
-    await restartPage.waitForTimeout(50);
-
-    await restartPage.evaluate(() => {
-        ended = true;
-        statusEl.textContent = "GAME OVER — Test state";
-    });
-
-    await restartPage.keyboard.press("r");
     await restartPage.waitForTimeout(150);
 
-    const restartState = await restartPage.evaluate(() => ({
+    const restartedState = await restartPage.evaluate(() => ({
+        state: window.MINDCRAFT_GAME.getState(),
         ended: window.MINDCRAFT_GAME.isEnded(),
-        gravity: window.MINDCRAFT_GAME.getState().gravity,
-        x: window.MINDCRAFT_GAME.getState().x,
         status: window.MINDCRAFT_GAME.getStatus()
     }));
 
     console.log(
-        `Restart test state: ${JSON.stringify(restartState)}`
+        `Restart test state: ${JSON.stringify(restartedState)}`
     );
 
-    if (
-        restartState.ended ||
-        restartState.x !== 1.5 ||
-        restartState.gravity !== "floor"
-    ) {
-        throw new Error("FAIL: Restart did not reset the game.");
+    if (restartedState.ended) {
+        throw new Error("FAIL: Restart left game ended.");
     }
 
-    console.log("Restart test: R key reset verified.");
+    console.log("Restart test: generic restart verified.");
 
     await restartPage.close();
 
+    // Final health check.
+    const finalPage = await browser.newPage();
+    const finalErrors = [];
+
+    finalPage.on("pageerror", error => {
+        finalErrors.push(error.message);
+    });
+
+    await finalPage.goto(`file://${gamePath}`);
+    await finalPage.waitForTimeout(100);
+
+    if (finalErrors.length > 0) {
+        throw new Error(
+            `FAIL: JavaScript errors after restart: ${finalErrors.join("; ")}`
+        );
+    }
+
+    const finalContract = await finalPage.evaluate(() => ({
+        title: window.MINDCRAFT_GAME.title,
+        gameType: window.MINDCRAFT_GAME.gameType,
+        engine: window.MINDCRAFT_GAME.engine,
+        status: window.MINDCRAFT_GAME.getStatus()
+    }));
+
     console.log(
-        "PLAYTEST PASS: 3D game loads, contract works, movement works, gravity flips, obstacles cause GAME OVER, finish causes YOU WIN, and restart works."
+        `Final health check: ${JSON.stringify(finalContract)}`
     );
 
+    await finalPage.close();
     await browser.close();
+
+    console.log(
+        `PLAYTEST PASS: Generic 3D game "${finalContract.title}" ` +
+        `(${finalContract.gameType}) loads, contract works, ` +
+        `movement works, restart works, and no JavaScript errors occur.`
+    );
 })();

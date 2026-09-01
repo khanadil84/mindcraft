@@ -3,41 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Gravity Flip — MindCraft</title>
+<title>Color Gate — MindCraft</title>
 <style>
-*{box-sizing:border-box}
-body{
- margin:0;
- background:#020617;
- color:white;
- font-family:Arial,sans-serif;
- text-align:center;
-}
-h1{margin:14px 0 5px}
+body{margin:0;background:#050816;color:white;font-family:Arial,sans-serif;text-align:center}
+#game{display:block;width:min(900px,96vw);height:auto;margin:18px auto 8px;background:#000;border:2px solid #334155}
+#status{font-size:20px;font-weight:bold}
 .info{color:#cbd5e1;margin:5px}
-#game{
- display:block;
- width:min(900px,96vw);
- height:auto;
- margin:15px auto 8px;
- border:2px solid #334155;
- background:#000;
-}
-#status{font-size:20px;font-weight:bold;margin:8px}
 .footer{color:#94a3b8;margin:12px}
 </style>
 </head>
-
 <body>
-
-<h1>Gravity Flip</h1>
-<div class="info">A fast arcade game where the player flips gravity to avoid obstacles.</div>
-<div class="info">Press Space to flip gravity.</div>
-
+<h1>Color Gate</h1>
+<div class="info">A reaction puzzle where the player passes through matching color gates.</div>
+<div class="info">Press R, G, or B to select a color.</div>
 <canvas id="game" width="900" height="500"></canvas>
-
-<div id="status">Gravity: FLOOR | Progress: 0%</div>
-
+<div id="status">Gate: BLUE | Progress: 0%</div>
 <div class="footer">Powered by @Modiqo & #rote</div>
 
 <script>
@@ -47,45 +27,36 @@ const canvas=document.getElementById("game");
 const ctx=canvas.getContext("2d");
 const statusEl=document.getElementById("status");
 
-const world={
- width:18,
- floor:4.2,
- ceiling:0.8
-};
-
-const player={
- x:1.5,
- y:4.2,
- radius:.25,
- speed:.075,
- gravity:"floor"
-};
-
-const obstacles=[
- {x:4.0,y:4.2,w:.65,h:1.2},
- {x:7.0,y:.8,w:.65,h:1.2},
- {x:10.0,y:4.2,w:.65,h:1.2},
- {x:13.0,y:.8,w:.65,h:1.2},
- {x:15.5,y:4.2,w:.65,h:1.2}
+const player={x:1.5,y:5.5,speed:.08,radius:.25};
+const gates=[
+ {x:5,y:3,color:"red"},
+ {x:8,y:7,color:"blue"},
+ {x:11,y:3,color:"green"},
+ {x:14,y:7,color:"yellow"},
+ {x:17,y:3,color:"red"},
+ {x:20,y:7,color:"blue"}
 ];
 
-const finish={x:17.0};
-
+const colors=["red","blue","green","yellow"];
 const keys=new Set();
-let ended=false;
+
+let selected="blue";
 let progress=0;
+let ended=false;
 
 window.MINDCRAFT_GAME={
  version:"1.0",
  engine:"3d",
- title:'Gravity Flip',
- gameType:"gravity-flip",
+ title:'Color Gate',
+ gameType:"color-gate",
  getStatus:()=>statusEl.textContent,
  isEnded:()=>ended,
  getState:()=>({
-   gravity:player.gravity,
    x:player.x,
-   progress
+   y:player.y,
+   color:selected,
+   progress,
+   ended
  }),
  restart:()=>location.reload()
 };
@@ -98,142 +69,147 @@ document.addEventListener("keydown",e=>{
    return;
  }
 
- if(k===" " || k==="spacebar"){
-   e.preventDefault();
-
-   if(!ended){
-     player.gravity=
-       player.gravity==="floor" ? "ceiling" : "floor";
-     player.y=
-       player.gravity==="floor" ? world.floor : world.ceiling;
-   }
-
-   return;
+ if(["1","2","3","4"].includes(k)){
+   selected=colors[Number(k)-1];
  }
 
  keys.add(k);
 
- if(["arrowleft","arrowright","a","d"].includes(k))
+ if(["arrowup","arrowdown","arrowleft","arrowright","w","a","s","d"].includes(k))
    e.preventDefault();
 });
 
-document.addEventListener("keyup",e=>{
- keys.delete(e.key.toLowerCase());
-});
-
-function obstacleHit(o){
- return(
-   player.x+player.radius>o.x &&
-   player.x-player.radius<o.x+o.w &&
-   player.y+player.radius>o.y-o.h/2 &&
-   player.y-player.radius<o.y+o.h/2
- );
-}
+document.addEventListener("keyup",e=>keys.delete(e.key.toLowerCase()));
 
 function update(){
  if(ended)return;
 
- if(keys.has("arrowright")||keys.has("d"))
-   player.x+=player.speed;
+ if(keys.has("arrowright")||keys.has("d"))player.x+=player.speed;
+ if(keys.has("arrowleft")||keys.has("a"))player.x-=player.speed;
+ if(keys.has("arrowup")||keys.has("w"))player.y-=player.speed;
+ if(keys.has("arrowdown")||keys.has("s"))player.y+=player.speed;
 
- if(keys.has("arrowleft")||keys.has("a"))
-   player.x-=player.speed;
+ player.x=Math.max(.5,Math.min(21.5,player.x));
+ player.y=Math.max(1,Math.min(9,player.y));
 
- player.x=Math.max(.5,Math.min(finish.x,player.x));
+ for(const g of gates){
+   if(!g.passed &&
+      Math.abs(player.x-g.x)<.35){
 
- for(const o of obstacles){
-   if(obstacleHit(o)){
-     ended=true;
-     statusEl.textContent="GAME OVER — Obstacle collision!";
-     return;
+     if(selected!==g.color){
+       ended=true;
+       statusEl.textContent=
+         `GAME OVER — Wrong color! Gate was ${g.color.toUpperCase()}`;
+       return;
+     }
+
+     g.passed=true;
+     progress=Math.floor(
+       gates.filter(x=>x.passed).length/gates.length*100
+     );
    }
  }
 
- progress=Math.min(
-   100,
-   Math.floor((player.x/(finish.x))*100)
- );
-
- if(player.x>=finish.x){
+ if(progress>=100){
    ended=true;
-   progress=100;
-   statusEl.textContent="YOU WIN! Gravity Flip completed!";
+   statusEl.textContent="YOU WIN! Color Gate completed!";
    return;
  }
 
  statusEl.textContent=
-   `Gravity: ${player.gravity.toUpperCase()} | Progress: ${progress}%`;
+   `Gate: ${selected.toUpperCase()} | Progress: ${progress}%`;
 }
 
-function drawWorld(){
- const w=canvas.width;
- const h=canvas.height;
+function draw3D(){
+ const w=canvas.width,h=canvas.height;
 
- ctx.fillStyle="#081126";
- ctx.fillRect(0,0,w,h);
+ ctx.fillStyle="#111827";
+ ctx.fillRect(0,0,w,h/2);
 
- ctx.fillStyle="#111c36";
- ctx.fillRect(0,180,w,140);
+ ctx.fillStyle="#020617";
+ ctx.fillRect(0,h/2,w,h/2);
 
- ctx.strokeStyle="#38bdf8";
- ctx.lineWidth=4;
- ctx.beginPath();
- ctx.moveTo(0,world.floor*70);
- ctx.lineTo(w,world.floor*70);
- ctx.stroke();
+ for(let x=0;x<w;x+=4){
+   const wave=Math.sin(x*.025)*18;
+   const wallHeight=115+wave;
 
- ctx.strokeStyle="#a78bfa";
- ctx.beginPath();
- ctx.moveTo(0,world.ceiling*70);
- ctx.lineTo(w,world.ceiling*70);
- ctx.stroke();
+   ctx.fillStyle=
+     `rgb(25,45,${90+Math.floor(Math.abs(wave))})`;
 
- const scale=42;
-
- for(const o of obstacles){
-   ctx.fillStyle="#ef4444";
-   ctx.fillRect(
-     o.x*scale,
-     o.y*70-42,
-     o.w*scale,
-     o.h*70
-   );
+   ctx.fillRect(x,(h-wallHeight)/2,4,wallHeight);
  }
+}
 
- ctx.fillStyle="#22c55e";
- ctx.fillRect(finish.x*scale,150,24,170);
+function project(x,y,color,size){
+ const dx=x-player.x;
+ const dy=y-player.y;
+ const distance=Math.hypot(dx,dy);
 
- ctx.fillStyle="#22d3ee";
+ if(distance<.1)return;
+
+ const screenX=
+   canvas.width/2+
+   (dx/distance)*(canvas.width*.36);
+
+ const projected=
+   Math.min(110,canvas.height/(distance*.4))*size;
+
  ctx.beginPath();
  ctx.arc(
-   player.x*scale,
-   player.gravity==="floor"
-     ? world.floor*70-18
-     : world.ceiling*70+18,
-   13,
+   screenX,
+   canvas.height/2,
+   projected,
    0,
    Math.PI*2
  );
+
+ ctx.fillStyle=color;
+ ctx.shadowBlur=24;
+ ctx.shadowColor=color;
  ctx.fill();
+ ctx.shadowBlur=0;
+}
+
+function draw(){
+ draw3D();
+
+ for(const g of gates){
+   if(!g.passed)
+     project(g.x,g.y,g.color,.32);
+ }
+
+ project(
+   player.x+1,
+   player.y,
+   selected,
+   .22
+ );
 
  ctx.fillStyle="white";
  ctx.font="16px Arial";
- ctx.fillText("MINDCRAFT 3D",20,28);
+ ctx.fillText("3D COLOR GATE",20,28);
  ctx.fillText(
-   "SPACE = FLIP GRAVITY",
+   "1=RED  2=BLUE  3=GREEN  4=YELLOW",
    20,
    475
  );
+
+ ctx.strokeStyle="rgba(255,255,255,.5)";
+ ctx.beginPath();
+ ctx.moveTo(canvas.width/2-8,canvas.height/2);
+ ctx.lineTo(canvas.width/2+8,canvas.height/2);
+ ctx.moveTo(canvas.width/2,canvas.height/2-8);
+ ctx.lineTo(canvas.width/2,canvas.height/2+8);
+ ctx.stroke();
 }
 
 function loop(){
  update();
- drawWorld();
+ draw();
  requestAnimationFrame(loop);
 }
 
 loop();
 </script>
-
 </body>
 </html>
