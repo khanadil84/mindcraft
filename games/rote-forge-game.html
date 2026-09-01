@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Laser Dodge — MindCraft</title>
+<style>
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: #111827;
+    color: white;
+    font-family: Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#app {
+    width: min(900px, 95vw);
+    text-align: center;
+}
+
+canvas {
+    display: block;
+    width: 100%;
+    max-width: 800px;
+    margin: 18px auto;
+    background: #020617;
+    border: 2px solid #64748b;
+    border-radius: 12px;
+}
+
+.info {
+    color: #cbd5e1;
+    margin: 5px auto;
+}
+
+#status {
+    font-size: 20px;
+    font-weight: bold;
+    min-height: 28px;
+}
+
+.footer {
+    margin-top: 12px;
+    color: #94a3b8;
+    font-size: 14px;
+}
+</style>
+</head>
+
+<body>
+<div id="app">
+
+<h1>Laser Dodge</h1>
+<div class="info">An arcade survival game where the player dodges sweeping laser beams.</div>
+<div class="info"><strong>Objective:</strong> Survive long enough to reach the extraction timer.</div>
+<div class="info"><strong>Controls:</strong> Use Arrow Keys or WASD to move.</div>
+
+<canvas id="game" width="800" height="450"></canvas>
+
+<div id="status">Survive: 30.0 seconds</div>
+
+<div class="info"><strong>Mechanic:</strong> Predict and dodge rotating laser beams.</div>
+<div class="info"><strong>Win:</strong> Survive for 30 seconds.</div>
+<div class="info"><strong>Lose:</strong> Touch a laser beam.</div>
+
+<div class="footer">Powered by @Modiqo & #rote</div>
+
+<script>
+"use strict";
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const statusEl = document.getElementById("status");
+
+const keys = new Set();
+
+const player = {
+    x: 120,
+    y: 225,
+    radius: 12,
+    speed: 4
+};
+
+const center = {
+    x: 400,
+    y: 225
+};
+
+let angle = 0;
+let startTime = performance.now();
+let gameOver = false;
+
+const survivalTime = 30000;
+const laserLength = 330;
+const laserWidth = 10;
+const rotationSpeed = 0.0018;
+
+document.addEventListener("keydown", event => {
+    keys.add(event.key.toLowerCase());
+});
+
+document.addEventListener("keyup", event => {
+    keys.delete(event.key.toLowerCase());
+});
+
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+}
+
+function movePlayer() {
+    if (keys.has("arrowup") || keys.has("w")) player.y -= player.speed;
+    if (keys.has("arrowdown") || keys.has("s")) player.y += player.speed;
+    if (keys.has("arrowleft") || keys.has("a")) player.x -= player.speed;
+    if (keys.has("arrowright") || keys.has("d")) player.x += player.speed;
+
+    player.x = clamp(player.x, player.radius, canvas.width - player.radius);
+    player.y = clamp(player.y, player.radius, canvas.height - player.radius);
+}
+
+function distanceToLaser(px, py) {
+    const dx = Math.cos(angle);
+    const dy = Math.sin(angle);
+
+    const vx = px - center.x;
+    const vy = py - center.y;
+
+    const projection = vx * dx + vy * dy;
+
+    if (projection < 0 || projection > laserLength) return Infinity;
+
+    const closestX = center.x + projection * dx;
+    const closestY = center.y + projection * dy;
+
+    return Math.hypot(px - closestX, py - closestY);
+}
+
+function checkLaserCollision() {
+    return distanceToLaser(player.x, player.y)
+        <= player.radius + laserWidth / 2;
+}
+
+function drawLaser() {
+    const dx = Math.cos(angle);
+    const dy = Math.sin(angle);
+
+    const endX = center.x + dx * laserLength;
+    const endY = center.y + dy * laserLength;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(center.x, center.y);
+    ctx.lineTo(endX, endY);
+    ctx.lineWidth = laserWidth;
+    ctx.strokeStyle = "#ef4444";
+    ctx.shadowBlur = 18;
+    ctx.shadowColor = "#ef4444";
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawPlayer() {
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
+    ctx.fillStyle = "#38bdf8";
+    ctx.fill();
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+}
+
+function drawCenter() {
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, 8, 0, Math.PI * 2);
+    ctx.fillStyle = "#facc15";
+    ctx.fill();
+}
+
+function update(now) {
+    if (gameOver) return;
+
+    movePlayer();
+    angle += rotationSpeed * 16;
+
+    if (checkLaserCollision()) {
+        gameOver = true;
+        statusEl.textContent = "GAME OVER — You touched the laser!";
+        return;
+    }
+
+    const elapsed = now - startTime;
+    const remaining = Math.max(0, (survivalTime - elapsed) / 1000);
+
+    statusEl.textContent =
+        `Survive: ${remaining.toFixed(1)} seconds`;
+
+    if (elapsed >= survivalTime) {
+        gameOver = true;
+        statusEl.textContent = "YOU WIN! Extraction reached!";
+    }
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawLaser();
+    drawCenter();
+    drawPlayer();
+
+    ctx.fillStyle = "white";
+    ctx.font = "18px Arial";
+    ctx.fillText("LASER DODGE", 20, 30);
+}
+
+function loop(now) {
+    update(now);
+    draw();
+    requestAnimationFrame(loop);
+}
+
+requestAnimationFrame(loop);
+</script>
+
+</body>
+</html>

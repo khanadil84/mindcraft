@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Neon Escape 3D — MindCraft</title>
+<style>
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:#050816;
+  color:white;
+  font-family:Arial,sans-serif;
+  text-align:center;
+}
+#game{
+  display:block;
+  width:min(900px,96vw);
+  height:auto;
+  margin:18px auto 8px;
+  background:#000;
+  border:2px solid #334155;
+}
+#status{font-size:20px;font-weight:bold}
+.info{color:#cbd5e1;margin:5px}
+.footer{color:#94a3b8;margin:12px}
+</style>
+</head>
+<body>
+
+<h1>Neon Escape 3D</h1>
+<div class="info">Collect 3 energy cores and reach the exit.</div>
+<div class="info">W/S = move &nbsp; A/D = turn</div>
+
+<canvas id="game" width="900" height="500"></canvas>
+
+<div id="status">Cores: 0 / 3 | Time: 60</div>
+<div class="footer">Powered by @Modiqo & #rote</div>
+
+<script>
+"use strict";
+
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+const statusEl=document.getElementById("status");
+
+const map=[
+"111111111111",
+"100000000001",
+"101111011101",
+"100001000001",
+"101101011101",
+"100100000001",
+"101101110101",
+"100000000001",
+"101111011101",
+"100000000001",
+"111111111111"
+];
+
+const tile=1;
+const player={
+  x:1.8,
+  y:1.8,
+  angle:0,
+  speed:0.045,
+  turn:0.045
+};
+
+const cores=[
+  {x:5.5,y:3.5,taken:false},
+  {x:9.5,y:5.5,taken:false},
+  {x:3.5,y:8.5,taken:false}
+];
+
+const exit={x:10.2,y:9.2};
+const keys=new Set();
+
+let start=performance.now();
+let ended=false;
+let hazardAngle=0;
+
+document.addEventListener("keydown",e=>{
+  keys.add(e.key.toLowerCase());
+  if(["w","a","s","d","arrowup","arrowdown","arrowleft","arrowright"].includes(e.key.toLowerCase()))
+    e.preventDefault();
+});
+
+document.addEventListener("keyup",e=>{
+  keys.delete(e.key.toLowerCase());
+});
+
+function wall(x,y){
+  const mx=Math.floor(x);
+  const my=Math.floor(y);
+  return !map[my] || map[my][mx]!=="0";
+}
+
+function tryMove(nx,ny){
+  const r=.18;
+  if(!wall(nx-r,player.y) &&
+     !wall(nx+r,player.y) &&
+     !wall(nx,player.y-r) &&
+     !wall(nx,player.y+r)){
+    player.x=nx;
+  }
+
+  if(!wall(player.x,ny-r) &&
+     !wall(player.x,ny+r) &&
+     !wall(player.x-r,ny) &&
+     !wall(player.x+r,ny)){
+    player.y=ny;
+  }
+}
+
+function update(){
+  if(ended)return;
+
+  if(keys.has("a")||keys.has("arrowleft"))
+    player.angle-=player.turn;
+
+  if(keys.has("d")||keys.has("arrowright"))
+    player.angle+=player.turn;
+
+  let move=0;
+
+  if(keys.has("w")||keys.has("arrowup"))move+=player.speed;
+  if(keys.has("s")||keys.has("arrowdown"))move-=player.speed;
+
+  if(move){
+    tryMove(
+      player.x+Math.cos(player.angle)*move,
+      player.y+Math.sin(player.angle)*move
+    );
+  }
+
+  hazardAngle+=0.035;
+
+  for(const c of cores){
+    if(!c.taken && Math.hypot(player.x-c.x,player.y-c.y)<.4)
+      c.taken=true;
+  }
+
+  const coreCount=cores.filter(c=>c.taken).length;
+
+  if(Math.hypot(player.x-exit.x,player.y-exit.y)<.55 && coreCount===3){
+    ended=true;
+    statusEl.textContent="YOU WIN! Neon Escape completed!";
+    return;
+  }
+
+  const elapsed=(performance.now()-start)/1000;
+
+  if(elapsed>=60){
+    ended=true;
+    statusEl.textContent="GAME OVER — Time expired!";
+    return;
+  }
+
+  statusEl.textContent=
+    `Cores: ${coreCount} / 3 | Time: ${Math.ceil(60-elapsed)}`;
+}
+
+function castRay(angle){
+  const cos=Math.cos(angle);
+  const sin=Math.sin(angle);
+
+  let distance=0;
+
+  while(distance<20){
+    distance+=0.025;
+
+    const x=player.x+cos*distance;
+    const y=player.y+sin*distance;
+
+    if(wall(x,y))return distance;
+  }
+
+  return 20;
+}
+
+function draw3D(){
+  const w=canvas.width;
+  const h=canvas.height;
+
+  ctx.fillStyle="#111827";
+  ctx.fillRect(0,0,w,h/2);
+
+  ctx.fillStyle="#020617";
+  ctx.fillRect(0,h/2,w,h/2);
+
+  const fov=Math.PI/3;
+
+  for(let x=0;x<w;x++){
+    const rayAngle=
+      player.angle-fov/2+(x/w)*fov;
+
+    let distance=castRay(rayAngle);
+
+    distance*=Math.cos(rayAngle-player.angle);
+
+    const wallHeight=Math.min(
+      h,
+      h/(distance*.72)
+    );
+
+    const top=(h-wallHeight)/2;
+
+    const shade=Math.max(
+      20,
+      Math.floor(220/(1+distance*.45))
+    );
+
+    ctx.fillStyle=`rgb(${Math.floor(shade*.25)},${Math.floor(shade*.55)},${shade})`;
+    ctx.fillRect(x,top,1,wallHeight);
+  }
+}
+
+function projectObject(obj,color,size){
+  const dx=obj.x-player.x;
+  const dy=obj.y-player.y;
+
+  const distance=Math.hypot(dx,dy);
+
+  let relative=Math.atan2(dy,dx)-player.angle;
+
+  while(relative>Math.PI)relative-=Math.PI*2;
+  while(relative<-Math.PI)relative+=Math.PI*2;
+
+  const fov=Math.PI/3;
+
+  if(Math.abs(relative)>fov/2)return;
+
+  const screenX=
+    canvas.width/2+
+    (relative/(fov/2))*(canvas.width/2);
+
+  const projectedSize=
+    Math.min(180,canvas.height/(distance*.7))*size;
+
+  const y=canvas.height/2;
+
+  ctx.beginPath();
+  ctx.arc(
+    screenX,
+    y,
+    projectedSize,
+    0,
+    Math.PI*2
+  );
+
+  ctx.fillStyle=color;
+  ctx.shadowBlur=25;
+  ctx.shadowColor=color;
+  ctx.fill();
+  ctx.shadowBlur=0;
+}
+
+function drawObjects(){
+  for(const c of cores){
+    if(!c.taken)
+      projectObject(c,"#22d3ee",.18);
+  }
+
+  projectObject(exit,"#22c55e",.25);
+
+  const hazard={
+    x:6+Math.cos(hazardAngle)*2,
+    y:6+Math.sin(hazardAngle)*2
+  };
+
+  projectObject(hazard,"#ef4444",.22);
+
+  if(Math.hypot(
+      player.x-hazard.x,
+      player.y-hazard.y
+    )<.42){
+      ended=true;
+      statusEl.textContent="GAME OVER — Hazard collision!";
+  }
+}
+
+function draw(){
+  draw3D();
+  drawObjects();
+
+  ctx.fillStyle="white";
+  ctx.font="16px Arial";
+  ctx.fillText("3D NEON ESCAPE",20,28);
+
+  ctx.strokeStyle="rgba(255,255,255,.5)";
+  ctx.beginPath();
+  ctx.moveTo(canvas.width/2-8,canvas.height/2);
+  ctx.lineTo(canvas.width/2+8,canvas.height/2);
+  ctx.moveTo(canvas.width/2,canvas.height/2-8);
+  ctx.lineTo(canvas.width/2,canvas.height/2+8);
+  ctx.stroke();
+}
+
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+
+</body>
+</html>
